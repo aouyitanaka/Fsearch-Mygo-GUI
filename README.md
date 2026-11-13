@@ -7,7 +7,8 @@ the whole-disk file search for macOS, written in Go with
 - **Name** mode: fuzzy, typo-tolerant file names as you type.
 - **Content** mode: search inside files through fsearch's trigram index.
 - Sortable, resizable table. Double-click or Enter opens a file; right-click for
-  *Open*, *Reveal in Finder* and *Copy Path*.
+  *Open*, *Reveal in Finder* and *Copy Path*. Cmd/Shift-click chooses several
+  rows, which those actions apply to together.
 - The status bar shows fsearch's own search time, the index size, and progress
   while content is still being indexed.
 
@@ -19,7 +20,7 @@ index fresh after the app closes.
 ## Requirements
 
 - macOS (fsearch is macOS only).
-- Go 1.27.1 or later (MyGo v0.4.1 requires it). With `GOTOOLCHAIN=auto`, the
+- Go 1.27.3 or later (MyGo v0.9.0 requires it). With `GOTOOLCHAIN=auto`, the
   default, `go` downloads it for you.
 - The `fsearch` binary. The packaged `.app` bundles it in
   `Contents/Resources`; for `mygo dev` and tests it is looked for at

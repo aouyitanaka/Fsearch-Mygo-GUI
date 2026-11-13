@@ -3,3 +3,4 @@
 mygo_windows_*.syso
 /fsearch-mygo-gui
 /resources/fsearch
+.DS_Store

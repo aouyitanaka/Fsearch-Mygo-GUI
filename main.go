@@ -53,6 +53,7 @@ type app struct {
 	sorted   []row
 	table    ui.ListState
 	selected int
+	chosen   ui.Selection[string]
 	sort     ui.SortOrder
 
 	// pending is when the query last changed and has not been searched yet.
@@ -74,8 +75,14 @@ type app struct {
 func newApp(s Searcher) *app {
 	a := &app{searcher: s, selected: -1}
 	a.table.Selected = &a.selected
+	a.table.Selection = &a.chosen
 	a.table.Sort = &a.sort
-	a.table.Key = func(i int) any { return i }
+	a.table.Key = func(i int) any {
+		if i >= 0 && i < len(a.sorted) {
+			return a.sorted[i].Path
+		}
+		return ""
+	}
 	a.table.Label = func(i int) string {
 		if i >= 0 && i < len(a.sorted) {
 			return a.sorted[i].Name
@@ -158,6 +165,7 @@ func (a *app) clear() {
 	a.searchID++
 	a.rows, a.sorted = nil, nil
 	a.selected = -1
+	a.chosen.Clear()
 	a.err, a.notice, a.busy = "", "", false
 }
 
@@ -217,21 +225,44 @@ func (a *app) results(c *ui.Context) ui.Element {
 		a.resort()
 	}
 	if table.Submitted() {
-		a.open(a.selected)
+		if p, ok := a.path(a.selected); ok {
+			a.open(p)
+		}
 	}
-	return table.ContextMenu(func(m *ui.Menu) {
-		has := a.selected >= 0 && a.selected < len(a.sorted)
-		if m.Item("Open").Disabled(!has).Chosen() {
-			a.open(a.selected)
+	return table.ContextMenu(a.resultMenu)
+}
+
+// resultMenu fills m with the items acting on the chosen rows, which a
+// right-click outside them reduces to the row clicked.
+func (a *app) resultMenu(m *ui.Menu) {
+	paths := a.chosenPaths()
+	has := len(paths) > 0
+	if m.Item("Open").Disabled(!has).Chosen() {
+		for _, p := range paths {
+			a.open(p)
 		}
-		if m.Item("Reveal in Finder").Disabled(!has).Chosen() {
-			a.reveal(a.selected)
+	}
+	if m.Item("Reveal in Finder").Disabled(!has).Chosen() {
+		for _, p := range paths {
+			a.reveal(p)
 		}
-		m.Separator()
-		if m.Item("Copy Path").Disabled(!has).Chosen() {
-			a.copyPath(a.selected)
+	}
+	m.Separator()
+	if m.Item("Copy Path").Disabled(!has).Chosen() {
+		mygo.Clipboard.WriteText(strings.Join(paths, "\n"))
+	}
+}
+
+// chosenPaths returns the paths of the rows chosen, in the order the
+// table shows them.
+func (a *app) chosenPaths() []string {
+	var paths []string
+	for _, r := range a.sorted {
+		if a.chosen.Has(r.Path) {
+			paths = append(paths, r.Path)
 		}
-	})
+	}
+	return paths
 }
 
 func (a *app) hint(c *ui.Context) ui.Element {
@@ -316,6 +347,7 @@ func (a *app) startSearch() {
 			a.busy = false
 			a.took = took
 			a.selected = -1
+			a.chosen.Clear()
 			if err != nil {
 				a.rows, a.sorted = nil, nil
 				var ie *IndexingError
@@ -432,7 +464,6 @@ func (a *app) resort() {
 		}
 		return less
 	})
-	a.selected = -1
 }
 
 func (a *app) path(i int) (string, bool) {
@@ -442,24 +473,14 @@ func (a *app) path(i int) (string, bool) {
 	return a.sorted[i].Path, true
 }
 
-func (a *app) open(i int) {
-	if p, ok := a.path(i); ok {
-		if err := mygo.Shell.OpenPath(p); err != nil {
-			a.err = err.Error()
-		}
+func (a *app) open(p string) {
+	if err := mygo.Shell.OpenPath(p); err != nil {
+		a.err = err.Error()
 	}
 }
 
-func (a *app) reveal(i int) {
-	if p, ok := a.path(i); ok {
-		mygo.Shell.ShowItemInFolder(p)
-	}
-}
-
-func (a *app) copyPath(i int) {
-	if p, ok := a.path(i); ok {
-		mygo.Clipboard.WriteText(p)
-	}
+func (a *app) reveal(p string) {
+	mygo.Shell.ShowItemInFolder(p)
 }
 
 func nameRows(res NameResult) []row {
